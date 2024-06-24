@@ -3,12 +3,18 @@ import { withAccelerate } from "@prisma/extension-accelerate";
 import { Hono } from "hono";
 import { sign, verify } from "hono/jwt";
 import { signinInput, signupInput } from "@aadeshk/medium-common";
+import { getDBInstance } from "../db/util";
 
 export const userRouter = new Hono<{
   Bindings: {
     DATABASE_URL: string;
     JWT_SECRET: string;
+    R2_UPLOAD: R2Bucket;
+    R2_SUBDOMAIN_URL: string;
   };
+  Variables: {
+		userId: string;
+	};
 }>();
 
 userRouter.post("/signup", async (c) => {
@@ -105,9 +111,9 @@ userRouter.post("/signin", async (c) => {
 userRouter.use("/*", async (c, next) => {
   try {
     const header = c.req.header("authorization") || "";
-    const token = header.split(" ")[1];
+    const token = header && header.split(" ")[1];
     const user = await verify(token, c.env.JWT_SECRET);
-    if (user) {
+    if (user && typeof user.id === "string") {
       c.set("userId", user.id);
       return next();
     } else {
@@ -123,9 +129,7 @@ userRouter.use("/*", async (c, next) => {
 });
 
 userRouter.get("/:id", async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL,
-  }).$extends(withAccelerate());
+  const prisma = getDBInstance(c);
   const userId = await c.req.param("id");
   const authorizedUserId = c.get("userId");
   try {
@@ -164,30 +168,43 @@ userRouter.get("/", async (c) => {
 });
 
 userRouter.post("/updateDetail", async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL,
-  }).$extends(withAccelerate());
-  const body = await c.req.json();
-  const userId = c.get("userId");
-
-  if (body.userId !== userId) {
-    c.status(400);
-    return c.json({ error: "Unable to access this endpoint" });
-  }
   try {
-    const post = await prisma.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        details: body.details,
-      },
-    });
+    const prisma = getDBInstance(c);
+    const userId = c.get("userId");
+    const body = await c.req.parseBody();
+    const profileImage = body["file"];
+    const name = body["name"].toString();
+    const detail = body["detail"].toString();
+    if (name && detail && profileImage && profileImage instanceof File) {
+      const uploadedResponse = await c.env.R2_UPLOAD.put(
+        `${userId}-${profileImage.name}`,
+        profileImage
+      );
+      const user = await prisma.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          name: name,
+          details: detail,
+          profilePic: `${c?.env?.R2_SUBDOMAIN_URL}/${uploadedResponse?.key}`,
+        },
+      });
+      return c.json({
+        id: user.id,
+        name: user.name,
+        details: user.details,
+        profilePic: user.profilePic,
+        email: user.email
+      });
+    }
+    c.status(411);
     return c.json({
-      id: post.id,
+      error: "Profile picture could not be processed.",
     });
   } catch (ex) {
+    console.log(ex);
     c.status(403);
-    return c.json({ error: "Something went wrong " });
+    return c.json({ error: "Something went wrong" });
   }
 });

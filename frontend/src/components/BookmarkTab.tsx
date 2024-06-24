@@ -1,9 +1,9 @@
-import BlogCard from "./BlogCard";
-import { Link } from "react-router-dom";
-import { BlogType } from "../pages/Blogs";
+import BlogCard from './BlogCard';
+import { Link } from 'react-router-dom';
+import { Post } from '../types/post';
 
 type BookmarkTabProps = {
-  bookmarks: BlogType[];
+  bookmarks: Post[];
 };
 const BookmarkTab = ({ bookmarks }: BookmarkTabProps) => {
   return (
@@ -11,20 +11,22 @@ const BookmarkTab = ({ bookmarks }: BookmarkTabProps) => {
       <h1 className="text-2xl font-bold mb-2">Bookmarks</h1>
       <div className="flex flex-col justify-center items-center bg-gray-50">
         {bookmarks.length > 0 &&
-          bookmarks.map((bookmark: BlogType) => (
+          bookmarks.map((bookmark) => (
             <BlogCard
+              key={bookmark?.id}
               id={bookmark?.id}
               author={bookmark?.author}
               publishedDate={bookmark?.publishedDate}
               title={bookmark?.title}
               content={bookmark?.content}
+              tagsOnPost={bookmark.tagsOnPost}
             />
           ))}
       </div>
       {bookmarks.length === 0 && (
         <div className="flex justify-center mt-10">
           <h6 className="text-xl font-bold py-2">
-            No bookmarks yet! You can bookmark blogs in the blogs page{" "}
+            No bookmarks yet! You can bookmark blogs in the blogs page{' '}
             <Link to="/signin" className="underline">
               here
             </Link>
