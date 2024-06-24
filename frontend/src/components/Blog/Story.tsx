@@ -15,6 +15,10 @@ import SingleBlogSkeleton from '../../skeletons/SingleBlogSkeleton';
 import { Tags } from '../Tags';
 import ClapButton from '../ClapButton';
 import Avatar from '../Avatar';
+import { formatDateString } from '../../util/string';
+import VoiceOver from '../VoiceOver';
+import { getPlainTextFromHTML } from '../../util/string';
+import ChatModule from '../ChatModule';
 
 const Story = () => {
   const { id } = useParams();
@@ -22,6 +26,7 @@ const Story = () => {
   const { blog, loading } = useBlog({
     id: id || '',
   });
+
   function handleClickOnAvatar() {
     navigate(`/profile/${blog?.author?.id}`);
   }
@@ -46,9 +51,13 @@ const Story = () => {
           handleClickOnAvatar={handleClickOnAvatar}
         />
         <ActionBox />
+        <div className="pt-4">
+          <VoiceOver content={getPlainTextFromHTML(blog?.content)} />
+        </div>
         <div className="py-4">
           <ReactQuill value={blog?.content} readOnly={true} theme={'bubble'} />
         </div>
+        <ChatModule />
       </div>
       <Tags />
     </div>
@@ -64,6 +73,7 @@ const Loader = () => (
 const ActionBox = () => {
   const navigate = useNavigate();
   const [openUnbookmarkModal, setOpenUnbookmarkModal] = useState(false);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
 
   const { id } = useParams();
   const { blog, loading, deleteBlog, bookmarkBlog, unbookmarkBlog, submittingBookmark, likeBlog } = useBlog({
@@ -71,7 +81,7 @@ const ActionBox = () => {
   });
   if (loading) <Loader />;
   const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
-  const isAuthor = user?.id === blog?.author?.id;
+  const isAuthor = user?.id && user?.id === blog?.author?.id;
 
   const deleteStory = async () => {
     if (id) {
@@ -92,6 +102,11 @@ const ActionBox = () => {
   const onConfirmUnbookmark = () => {
     unbookmarkBlog(blog.bookmarkId!);
     setOpenUnbookmarkModal(false);
+  };
+
+  const onConfirmDelete = () => {
+    deleteStory();
+    setOpenDeleteModal(false);
   };
 
   const beginEditStory = () => {
@@ -136,7 +151,7 @@ const ActionBox = () => {
             </Tooltip>
             <Tooltip message="Remove">
               <button
-                onClick={deleteStory}
+                onClick={() => setOpenDeleteModal(true)}
                 type="button"
                 name="delete-story"
                 className="focus:outline-none font-medium rounded-lg text-sm px-2"
@@ -152,6 +167,12 @@ const ActionBox = () => {
         openModal={openUnbookmarkModal}
         onConfirm={onConfirmUnbookmark}
         onCloseModal={() => setOpenUnbookmarkModal(false)}
+      />
+      <Modal
+        message={'Are you sure that you want to delete this post?'}
+        openModal={openDeleteModal}
+        onConfirm={onConfirmDelete}
+        onCloseModal={() => setOpenDeleteModal(false)}
       />
     </div>
   );
@@ -177,7 +198,7 @@ const AuthorBox = ({
         <div className="font-bold">{name || 'Anonymous'}</div>
         <div>
           <span>{details ? details : 'An artist at living. My work of art is my life.'} </span> ·{' '}
-          <span className="text-sm text-slate-500">{publishedDate}</span>
+          <span className="text-sm text-slate-500">{formatDateString(publishedDate)}</span>
         </div>
       </div>
     </div>

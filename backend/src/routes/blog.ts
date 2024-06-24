@@ -2,7 +2,8 @@ import { createBlogInput, updateBlogInput } from "@aadeshk/medium-common";
 import { Hono } from "hono";
 import { verify } from "hono/jwt";
 import { getFormattedDate, shuffleArray } from "../utils";
-import { generateArticle } from "../genAI";
+import { generateArticle,generateChatResponse } from "../genAI";
+import OpenAI from "openai";
 import {
   buildQuery,
   buildPostSearchQuery,
@@ -84,87 +85,6 @@ blogRouter.get("/search", async (c) => {
     });
   }
 });
-/* 
-All routes above are unprotected (Users can access them without authentication)
-*/
-blogRouter.use("/*", async (c, next) => {
-  try {
-    const header = c.req.header("authorization") || "";
-    const token = header.split(" ")[1];
-    const user = await verify(token, c.env.JWT_SECRET);
-    if (user && typeof user.id === "string") {
-      c.set("userId", user.id);
-      return next();
-    } else {
-      c.status(403);
-      return c.json({ error: "Unauthorized " });
-    }
-  } catch (e) {
-    c.status(403);
-    return c.json({
-      error: "Credentials failed",
-    });
-  }
-});
-
-blogRouter.post("/", async (c) => {
-  const prisma = getDBInstance(c);
-  const body = await c.req.json();
-  const { success } = createBlogInput.safeParse(body);
-  if (!success) {
-    c.status(411);
-    return c.json({
-      message: "Inputs incorrect",
-    });
-  }
-  const authorId = c.get("userId");
-  try {
-    const post = await prisma.post.create({
-      data: {
-        title: body.title,
-        content: body.content,
-        authorId: authorId,
-        publishedDate: getFormattedDate(),
-      },
-    });
-    return c.json({
-      id: post.id,
-    });
-  } catch (ex) {
-    c.status(403);
-    return c.json({ error: "Something went wrong " });
-  }
-});
-
-blogRouter.put("/", async (c) => {
-  const prisma = getDBInstance(c);
-  const body = await c.req.json();
-  const { success } = updateBlogInput.safeParse(body);
-  if (!success) {
-    c.status(411);
-    return c.json({
-      message: "Inputs incorrect",
-    });
-  }
-  try {
-    const post = await prisma.post.update({
-      where: {
-        id: body.id,
-      },
-      data: {
-        title: body.title,
-        content: body.content,
-        publishedDate: getFormattedDate(),
-      },
-    });
-    return c.json({
-      id: post.id,
-    });
-  } catch (ex) {
-    c.status(403);
-    return c.json({ error: "Something went wrong " });
-  }
-});
 
 blogRouter.get("/:id", async (c) => {
   try {
@@ -233,6 +153,86 @@ blogRouter.get("/:id", async (c) => {
     return c.json({
       message: "Error while fetching post",
     });
+  }
+});
+
+/* 
+All routes above are unprotected (Users can access them without authentication)
+*/
+blogRouter.use("/*", async (c, next) => {
+  try {
+    const header = c.req.header("authorization") || "";
+    const token = header.split(" ")[1];
+    const user = await verify(token, c.env.JWT_SECRET);
+    if (user && typeof user.id === "string") {
+      c.set("userId", user.id);
+      return next();
+    } else {
+      c.status(403);
+      return c.json({ error: "Unauthorized " });
+    }
+  } catch (e) {
+    c.status(403);
+    return c.json({
+      error: "Credentials failed",
+    });
+  }
+});
+
+blogRouter.post("/", async (c) => {
+  const prisma = getDBInstance(c);
+  const body = await c.req.json();
+  const { success } = createBlogInput.safeParse(body);
+  if (!success) {
+    c.status(411);
+    return c.json({
+      message: "Inputs incorrect",
+    });
+  }
+  const authorId = c.get("userId");
+  try {
+    const post = await prisma.post.create({
+      data: {
+        title: body.title,
+        content: body.content,
+        authorId: authorId
+      },
+    });
+    return c.json({
+      id: post.id,
+    });
+  } catch (ex) {
+    c.status(403);
+    return c.json({ error: "Something went wrong ", stackTrace: ex });
+  }
+});
+
+blogRouter.put("/", async (c) => {
+  const prisma = getDBInstance(c);
+  const body = await c.req.json();
+  const { success } = updateBlogInput.safeParse(body);
+  if (!success) {
+    c.status(411);
+    return c.json({
+      message: "Inputs incorrect",
+    });
+  }
+  try {
+    const post = await prisma.post.update({
+      where: {
+        id: body.id,
+      },
+      data: {
+        title: body.title,
+        content: body.content,
+      },
+    });
+    return c.json({
+      id: post.id,
+    });
+  } catch (ex) {
+    c.status(403);
+    return c.json({ error: "Something went wrong ", stackTrace: ex });
   }
 });
 
@@ -320,5 +320,25 @@ blogRouter.get("/bulkUser/:id", async (c) => {
     return c.json({
       message: "Error while fetching post",
     });
+  }
+});
+blogRouter.post("/chat", async (c) => {
+  try {
+    if (!c.env.OPENAI_API_KEY) {
+      return c.json({
+        message: "This feature is disabled.",
+      });
+    }
+
+    const body = await c.req.json();
+    const { blogContent, userQuery, chatHistory, blogTitle } = body;
+    const response = await generateChatResponse(c.env.OPENAI_API_KEY, blogContent, userQuery, chatHistory, blogTitle);
+
+    return c.json({
+      message: response,
+    });
+  } catch (ex: unknown) {
+    c.status(403);
+    return c.json({ error: "Something went wrong", stackTrace: ex instanceof Error ? ex.toString() : JSON.stringify(ex) });
   }
 });

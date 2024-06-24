@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import debounce from 'lodash.debounce';
 import { BACKEND_URL } from '../config';
@@ -11,10 +11,13 @@ interface SearchResult {
 }
 
 const Search: React.FC = () => {
+  const { id } = useParams();
   const [query, setQuery] = useState<string>('');
   const [results, setResults] = useState<SearchResult>({ posts: [], users: [], tags: [] });
   const [loading, setLoading] = useState<boolean>(false);
-
+  useEffect(() => {
+    setQuery('');
+  }, [id]);
   const handleSearch = async (keyword: string) => {
     if (keyword.trim().length === 0) {
       setResults({ posts: [], users: [], tags: [] });
@@ -83,9 +86,9 @@ const Search: React.FC = () => {
               <h3 className="text-lg font-semibold">Tags</h3>
               {results.tags.length > 0 ? (
                 results.tags.map((tag) => (
-                  <div key={tag.id} className="p-1 cursor-pointer">
-                    {tag.tagName}
-                  </div>
+                  <Link key={tag.id} to={`/blogs?tag=${tag.id}`} className="block p-1 cursor-pointer hover:bg-gray-50">
+                    <div>{tag.tagName}</div>
+                  </Link>
                 ))
               ) : (
                 <div className="p-1">{loading ? 'Loading...' : 'No tags found'} </div>

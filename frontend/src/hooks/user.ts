@@ -64,7 +64,7 @@ export const useUser = (userId: string) => {
 
   useEffect(() => {
     fetchUser();
-  }, []);
+  }, [userId]);
 
   async function editUserDetails(formData: FormEvent) {
     try {
@@ -73,12 +73,12 @@ export const useUser = (userId: string) => {
         navigate('/signin');
       }
       setEditingDetails(true);
-      const response = await axios.post( `${BACKEND_URL}/api/v1/user/updateDetail`, formData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        });
+      const response = await axios.post(`${BACKEND_URL}/api/v1/user/updateDetail`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       if (response.status === 200) {
         setCurrentUser((prev: any) => ({ ...prev, ...response.data }));
       }
